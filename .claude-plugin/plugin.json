@@ -1,7 +1,7 @@
 {
   "name": "kmq",
   "description": "KubeMQ agent CLI — drive queues, events, events-store, and RPC from your AI agent",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": {
     "name": "KubeMQ"
   },
