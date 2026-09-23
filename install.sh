@@ -20,6 +20,9 @@ INSTALL_DIR="${KMQ_INSTALL_DIR:-}"
 BASE_URL="${KMQ_BASE_URL:-}"             # set → GCS mirror/staging mode
 PREFIX="${KMQ_PREFIX:-kmq}"              # GCS object prefix; staging verify sets KMQ_PREFIX=kmq/staging
 VERIFY_SIG="${KMQ_VERIFY_SIGNATURE:-}"   # non-empty → strict cosign
+# Release signing key fingerprint. A replacement key requires an intentional
+# installer update; a key downloaded alongside a release is not its own trust root.
+TRUSTED_COSIGN_PUB_SHA256="b8792764c60e86a21aa0aed6b34e964ea5cf180c3654a043dbd9e4355a1410fe"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -104,6 +107,12 @@ fetch -o "${tmp_dir}/checksums.txt" "$checksum_url"
 if command -v cosign >/dev/null 2>&1; then
   if fetch -o "${tmp_dir}/checksums.txt.sig" "$sig_url" \
      && fetch -o "${tmp_dir}/cosign.pub" "$pub_url"; then
+    if command -v sha256sum >/dev/null 2>&1; then
+      key_hash=$(sha256sum "${tmp_dir}/cosign.pub" | awk '{print $1}')
+    else
+      key_hash=$(shasum -a 256 "${tmp_dir}/cosign.pub" | awk '{print $1}')
+    fi
+    [ "$key_hash" = "$TRUSTED_COSIGN_PUB_SHA256" ] || { echo "Release signing key differs from the pinned kmq trust root; aborting." >&2; exit 1; }
     if ! ( cd "$tmp_dir" && cosign verify-blob --key cosign.pub --signature checksums.txt.sig checksums.txt ); then
       echo "cosign signature verification failed." >&2; exit 1
     fi
