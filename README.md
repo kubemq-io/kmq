@@ -9,7 +9,7 @@ The [KubeMQ server repository](https://github.com/kubemq-io/kubemq-server/tree/m
 The Unix installer supports Linux and macOS on x86-64 and arm64. Select a [published release](https://github.com/kubemq-io/kmq/releases), then use the same tag for the installer and binary:
 
 ```sh
-release_tag=vX.Y.Z # replace with a published tag
+release_tag=v1.0.0 # replace with another published tag if needed
 curl -sSfL "https://raw.githubusercontent.com/kubemq-io/kmq/${release_tag}/install.sh" |
   sh -s -- --version "${release_tag}" --install-dir "$HOME/.local/bin"
 "$HOME/.local/bin/kmq" version
@@ -17,7 +17,17 @@ curl -sSfL "https://raw.githubusercontent.com/kubemq-io/kmq/${release_tag}/insta
 
 The installer checks the archive against the release checksum, bounds download retries, and replaces the binary only after validation. Pass `--verify-signature` if you have `cosign` installed and require its signature check. The installer pins the release signing public key by its SHA-256 fingerprint: `b8792764c60e86a21aa0aed6b34e964ea5cf180c3654a043dbd9e4355a1410fe`. A key change requires an installer update. Review the downloaded script and release assets before using them in a managed environment. The installer accepts `KMQ_INSTALL_DIR` for a custom writable location and never needs KubeMQ credentials.
 
-For a manual install or a platform without this Unix installer, use the archive and checksum from the same [release](https://github.com/kubemq-io/kmq/releases). A native Windows installer is not included in this repository yet.
+On Windows x86-64, download and review the native PowerShell installer, then select a published binary release:
+
+```powershell
+$releaseTag = 'v1.0.0'
+Invoke-WebRequest 'https://raw.githubusercontent.com/kubemq-io/kmq/main/install.ps1' -OutFile .\install.ps1
+Get-Content .\install.ps1
+Unblock-File .\install.ps1
+.\install.ps1 -Version $releaseTag -VerifySignature
+```
+
+The Windows installer uses the user-writable local application data directory by default. It verifies the archive checksum and, with `-VerifySignature`, the pinned signing key before extracting only `kmq.exe`. It checks the binary version before replacing an existing installation. Install `cosign` before using `-VerifySignature`. The v1.0.0 tag predates this Windows installer, so this example fetches the script from `main` while pinning the binary release. Pin both to the same tag after an installer-bearing release is published. For a manual installation, use the archive and checksum from the same [release](https://github.com/kubemq-io/kmq/releases).
 
 ## First connection
 

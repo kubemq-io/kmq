@@ -1,0 +1,23 @@
+name: Windows installer
+
+on:
+  pull_request:
+    paths:
+      - install.ps1
+      - .github/workflows/windows-installer.yml
+
+jobs:
+  install:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install and replace a pinned release
+        shell: pwsh
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP 'kmq-installer-check'
+          ./install.ps1 -Version v1.0.0 -InstallDir $directory
+          $first = & (Join-Path $directory 'kmq.exe') version | ConvertFrom-Json
+          if ($first.version -ne 'v1.0.0') { throw 'Initial install reported the wrong version.' }
+          ./install.ps1 -Version v1.0.0 -InstallDir $directory
+          $second = & (Join-Path $directory 'kmq.exe') version | ConvertFrom-Json
+          if ($second.version -ne 'v1.0.0') { throw 'Replacement reported the wrong version.' }
