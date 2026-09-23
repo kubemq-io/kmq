@@ -15,7 +15,7 @@ curl -sSfL "https://raw.githubusercontent.com/kubemq-io/kmq/${release_tag}/insta
 "$HOME/.local/bin/kmq" version
 ```
 
-The installer checks the archive against the release checksum. Pass `--verify-signature` if you have `cosign` installed and require its signature check. Review the downloaded script and release assets before using them in a managed environment. The installer accepts `KMQ_INSTALL_DIR` for a custom writable location and never needs KubeMQ credentials.
+The installer checks the archive against the release checksum, bounds download retries, and replaces the binary only after validation. Pass `--verify-signature` if you have `cosign` installed and require its signature check. Review the downloaded script and release assets before using them in a managed environment. The installer accepts `KMQ_INSTALL_DIR` for a custom writable location and never needs KubeMQ credentials.
 
 For a manual install or a platform without this Unix installer, use the archive and checksum from the same [release](https://github.com/kubemq-io/kmq/releases). A native Windows installer is not included in this repository yet.
 
