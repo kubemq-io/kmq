@@ -1,0 +1,77 @@
+name: Qualify staged native candidate
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact candidate version, for example v3.5.0
+        required: true
+        type: string
+      candidate_prefix:
+        description: Non-default public GCS prefix containing VERSION/assets
+        required: true
+        default: kmq/staging/onboarding
+        type: string
+      checksums_sha256:
+        description: Trusted SHA-256 of candidate checksums.txt from release preparation
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: native-candidate-${{ inputs.version }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+          - runner: macos-15-intel
+            platform: darwin
+            arch: amd64
+          - runner: macos-15
+            platform: darwin
+            arch: arm64
+          - runner: windows-2025
+            platform: windows
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      KMQ_VERSION: ${{ inputs.version }}
+      KMQ_BASE_URL: https://storage.googleapis.com/storage.kubemq.io
+      KMQ_PREFIX: ${{ inputs.candidate_prefix }}
+      KMQ_CANDIDATE_CHECKSUMS_SHA256: ${{ inputs.checksums_sha256 }}
+      KMQ_EXPECTED_PLATFORM: ${{ matrix.platform }}
+      KMQ_EXPECTED_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+      - name: Install Linux native store prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsecret-tools gnome-keyring dbus-x11
+      - name: Execute candidate installer and native credential workflow on Linux
+        if: runner.os == 'Linux'
+        run: |
+          dbus-run-session -- sh -c 'printf "%s" "disposable-runner-keyring" | gnome-keyring-daemon --unlock --components=secrets >/dev/null; exec python3 validation/native_candidate.py'
+      - name: Execute candidate installer and native credential workflow on macOS
+        if: runner.os == 'macOS'
+        run: python3 validation/native_candidate.py
+      - name: Execute candidate PowerShell installer and Windows credential workflow
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python validation/native_candidate.py
+      - name: Upload only redacted qualification report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: validation/native-report.json
+          if-no-files-found: error
+          retention-days: 14
