@@ -39,6 +39,18 @@ def call(args, *, input=None, env=None, success=True, timeout=45):
     # Captured command output is intentionally never written to workflow logs.
     check(secret not in p.stdout + p.stderr and session_secret not in p.stdout + p.stderr,
           "command output redacts synthetic credentials")
+    if (p.returncode == 0) != success:
+        report["failed_command"] = [Path(str(args[0])).name, *[str(a) for a in args[1:3]]]
+        report["exit_code"] = p.returncode
+        if os.name == "nt" and "--credential-dir" in args:
+            directory = str(args[args.index("--credential-dir") + 1])
+            script = r'''$p=$args[0];$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;$paths=@($p,(Join-Path $p 'native'),(Join-Path $p 'file'));$paths|ForEach-Object {if(Test-Path -LiteralPath $_){$a=Get-Acl -LiteralPath $_;@{kind=(Split-Path $_ -Leaf);owner_matches=($a.GetOwner([Security.Principal.SecurityIdentifier]).Value -eq $sid);protected=$a.AreAccessRulesProtected;rules=@($a.Access).Count}}}|ConvertTo-Json -Compress'''
+            with tempfile.TemporaryDirectory(prefix="kmq-diagnostic-") as temp:
+                diagnostic = Path(temp) / "acl.ps1"
+                diagnostic.write_text(script)
+                probe = subprocess.run(["pwsh", "-NoProfile", "-File", str(diagnostic), directory], text=True, capture_output=True)
+                if probe.returncode == 0 and probe.stdout.strip():
+                    report["directory_access"] = json.loads(probe.stdout)
     check((p.returncode == 0) == success, "command exit matches expected outcome")
     return p
 
