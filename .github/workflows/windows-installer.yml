@@ -1,0 +1,77 @@
+name: Windows installer
+
+on:
+  pull_request:
+    paths:
+      - install.ps1
+      - .github/workflows/windows-installer.yml
+
+jobs:
+  install:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install and replace a pinned release
+        shell: pwsh
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP 'kmq-installer-check'
+          $cosign = Join-Path $env:RUNNER_TEMP 'cosign.exe'
+          Invoke-WebRequest 'https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-windows-amd64.exe' -OutFile $cosign
+          $env:PATH = "$env:RUNNER_TEMP;$env:PATH"
+          ./install.ps1 -Version v1.0.0 -InstallDir $directory -VerifySignature
+          $first = & (Join-Path $directory 'kmq.exe') version | ConvertFrom-Json
+          if ($first.version -ne 'v1.0.0') { throw 'Initial install reported the wrong version.' }
+          ./install.ps1 -Version v1.0.0 -InstallDir $directory -VerifySignature
+          $second = & (Join-Path $directory 'kmq.exe') version | ConvertFrom-Json
+          if ($second.version -ne 'v1.0.0') { throw 'Replacement reported the wrong version.' }
+      - name: Preserve the installed binary after a corrupt download
+        shell: pwsh
+        run: |
+          $directory = Join-Path $env:RUNNER_TEMP 'kmq-installer-check'
+          $root = Join-Path $env:RUNNER_TEMP 'kmq-corrupt-release'
+          $release = Join-Path $root 'kmq/v1.0.0'
+          $payload = Join-Path $root 'payload'
+          New-Item -ItemType Directory -Path $release, $payload -Force | Out-Null
+          Copy-Item (Join-Path $directory 'kmq.exe') (Join-Path $payload 'kmq.exe')
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = Join-Path $release 'kmq_windows_amd64.zip'
+          [IO.Compression.ZipFile]::CreateFromDirectory($payload, $archive)
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash
+          [IO.File]::WriteAllText((Join-Path $release 'checksums.txt'), "$hash  kmq_windows_amd64.zip`n")
+          [IO.File]::AppendAllText($archive, 'corrupt')
+
+          $server = Start-Job -ArgumentList $root -ScriptBlock {
+            param($files)
+            $listener = [Net.HttpListener]::new()
+            $listener.Prefixes.Add('http://127.0.0.1:18765/')
+            $listener.Start()
+            try {
+              while ($listener.IsListening) {
+                $request = $listener.GetContext()
+                $file = Join-Path $files ($request.Request.Url.AbsolutePath.TrimStart('/'))
+                if (Test-Path $file -PathType Leaf) {
+                  $bytes = [IO.File]::ReadAllBytes($file)
+                  $request.Response.ContentLength64 = $bytes.Length
+                  $request.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+                } else {
+                  $request.Response.StatusCode = 404
+                }
+                $request.Response.Close()
+              }
+            } finally { $listener.Stop() }
+          }
+          try {
+            Start-Sleep -Seconds 2
+            $env:KMQ_BASE_URL = 'http://127.0.0.1:18765'
+            $env:KMQ_PREFIX = 'kmq'
+            $message = ''
+            try { ./install.ps1 -Version v1.0.0 -InstallDir $directory }
+            catch { $message = $_.Exception.Message }
+            if ($message -notmatch 'Checksum mismatch') { throw "Expected checksum refusal, got: $message" }
+            $version = & (Join-Path $directory 'kmq.exe') version | ConvertFrom-Json
+            if ($version.version -ne 'v1.0.0') { throw 'Corrupt upgrade changed the installed binary.' }
+          } finally {
+            Remove-Item Env:KMQ_BASE_URL, Env:KMQ_PREFIX -ErrorAction SilentlyContinue
+            Stop-Job $server
+            Remove-Job $server
+          }

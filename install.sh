@@ -20,16 +20,23 @@ INSTALL_DIR="${KMQ_INSTALL_DIR:-}"
 BASE_URL="${KMQ_BASE_URL:-}"             # set → GCS mirror/staging mode
 PREFIX="${KMQ_PREFIX:-kmq}"              # GCS object prefix; staging verify sets KMQ_PREFIX=kmq/staging
 VERIFY_SIG="${KMQ_VERIFY_SIGNATURE:-}"   # non-empty → strict cosign
+# Release signing key fingerprint. A replacement key requires an intentional
+# installer update; a key downloaded alongside a release is not its own trust root.
+TRUSTED_COSIGN_PUB_SHA256="b8792764c60e86a21aa0aed6b34e964ea5cf180c3654a043dbd9e4355a1410fe"
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --version)          VERSION="$2"; shift 2 ;;
-    --install-dir)      INSTALL_DIR="$2"; shift 2 ;;
+    --version)          [ $# -ge 2 ] && [ -n "$2" ] || { echo "--version requires a release tag" >&2; exit 2; }; VERSION="$2"; shift 2 ;;
+    --install-dir)      [ $# -ge 2 ] && [ -n "$2" ] || { echo "--install-dir requires a path" >&2; exit 2; }; INSTALL_DIR="$2"; shift 2 ;;
     --verify-signature) VERIFY_SIG=1; shift ;;
     --help|-h) echo "Usage: $0 [--version vX.Y.Z] [--install-dir /path] [--verify-signature]"; exit 0 ;;
     *) echo "Unknown flag: $1" >&2; exit 2 ;;
   esac
 done
+
+# Bound every release request, including retries. A failed upgrade must leave the
+# existing executable intact instead of waiting forever on a stalled transfer.
+fetch() { curl -fsSL --retry 3 --retry-delay 1 --retry-max-time 60 --connect-timeout 10 --max-time 30 "$@"; }
 
 # ---- normalize version to a single leading v ----
 norm_ver() { case "$1" in v*) printf '%s' "$1" ;; *) printf 'v%s' "$1" ;; esac; }
@@ -54,7 +61,7 @@ archive="${ARCHIVE_BASE}_${os_name}_${arch_name}.${ext}"   # GAP-R1-1: base is k
 if [ -n "$BASE_URL" ]; then
   # GCS mirror / staging mode (PREFIX = kmq for the mirror, kmq/staging for staging verify)
   if [ -z "$VERSION" ]; then
-    VERSION=$(curl -sSfL "${BASE_URL}/${PREFIX}/stable.txt" | tr -d '[:space:]' || true)
+    VERSION=$(fetch "${BASE_URL}/${PREFIX}/stable.txt" | tr -d '[:space:]' || true)
     [ -n "$VERSION" ] || { echo "Could not determine latest version from ${BASE_URL}/${PREFIX}/stable.txt. Use --version." >&2; exit 1; }
   fi
   ver_base="${BASE_URL}/${PREFIX}/${VERSION}"
@@ -62,7 +69,7 @@ else
   # GitHub Releases mode (default)
   if [ -z "$VERSION" ]; then
     # resolve 'latest' via the redirect endpoint (no rate-limited API)
-    eff=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "${GH_BASE}/releases/latest" 2>/dev/null || true)
+    eff=$(fetch -I -o /dev/null -w '%{url_effective}' "${GH_BASE}/releases/latest" 2>/dev/null || true)
     VERSION=$(printf '%s' "$eff" | sed -n 's#.*/releases/tag/\(v[^/]*\)$#\1#p')
     [ -n "$VERSION" ] || { echo "Could not determine latest version (no published release yet?). Use --version." >&2; exit 1; }
   fi
@@ -75,27 +82,37 @@ pub_url="${ver_base}/cosign.pub"
 
 echo "Installing kmq ${VERSION} (${os_name}/${arch_name})..."
 
-tmp_dir=$(mktemp -d); trap 'rm -rf "$tmp_dir"' EXIT INT TERM
+tmp_dir=$(mktemp -d)
+stage=''
+trap 'rm -rf "$tmp_dir"; [ -z "$stage" ] || rm -f "$stage"' EXIT
+trap 'exit 130' INT TERM
 echo "Downloading ${archive_url}..."
-curl -sSfL -o "${tmp_dir}/${archive}" "$archive_url"
-curl -sSfL -o "${tmp_dir}/checksums.txt" "$checksum_url"
+fetch -o "${tmp_dir}/${archive}" "$archive_url"
+fetch -o "${tmp_dir}/checksums.txt" "$checksum_url"
 
 # ---- MANDATORY checksum verification (abort if no tool) ----
 ( cd "$tmp_dir"
-  match_count=$(grep -c " ${archive}\$" checksums.txt || true)
+  match_count=$(awk -v name="$archive" '$2 == name { count++ } END { print count+0 }' checksums.txt)
   [ "$match_count" -eq 1 ] || { echo "checksums.txt does not contain exactly one entry for ${archive} (found ${match_count:-0}); aborting." >&2; exit 1; }
+  awk -v name="$archive" '$2 == name { print }' checksums.txt > selected-checksum.txt
   if command -v sha256sum >/dev/null 2>&1; then
-    grep " ${archive}\$" checksums.txt | sha256sum -c -
+    sha256sum -c selected-checksum.txt
   elif command -v shasum >/dev/null 2>&1; then
-    grep " ${archive}\$" checksums.txt | shasum -a 256 -c -
+    shasum -a 256 -c selected-checksum.txt
   else
     echo "sha256sum/shasum required to verify the download but neither was found." >&2; exit 1
   fi )
 
 # ---- cosign verification (best-effort; strict on demand) ----
 if command -v cosign >/dev/null 2>&1; then
-  if curl -sSfL -o "${tmp_dir}/checksums.txt.sig" "$sig_url" \
-     && curl -sSfL -o "${tmp_dir}/cosign.pub" "$pub_url"; then
+  if fetch -o "${tmp_dir}/checksums.txt.sig" "$sig_url" \
+     && fetch -o "${tmp_dir}/cosign.pub" "$pub_url"; then
+    if command -v sha256sum >/dev/null 2>&1; then
+      key_hash=$(sha256sum "${tmp_dir}/cosign.pub" | awk '{print $1}')
+    else
+      key_hash=$(shasum -a 256 "${tmp_dir}/cosign.pub" | awk '{print $1}')
+    fi
+    [ "$key_hash" = "$TRUSTED_COSIGN_PUB_SHA256" ] || { echo "Release signing key differs from the pinned kmq trust root; aborting." >&2; exit 1; }
     if ! ( cd "$tmp_dir" && cosign verify-blob --key cosign.pub --signature checksums.txt.sig checksums.txt ); then
       echo "cosign signature verification failed." >&2; exit 1
     fi
@@ -113,11 +130,11 @@ fi
 
 # ---- extract (unchanged logic) ----
 if [ "$ext" = tar.gz ]; then
-  tar -xzf "${tmp_dir}/${archive}" -C "$tmp_dir"
+  tar -xzf "${tmp_dir}/${archive}" -C "$tmp_dir" "$bin_name"
 elif command -v unzip >/dev/null 2>&1; then
-  unzip -q "${tmp_dir}/${archive}" -d "$tmp_dir"
+  unzip -q "${tmp_dir}/${archive}" "$bin_name" -d "$tmp_dir"
 elif command -v python3 >/dev/null 2>&1; then
-  python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "${tmp_dir}/${archive}" "$tmp_dir"
+  python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extract(sys.argv[3],sys.argv[2])" "${tmp_dir}/${archive}" "$tmp_dir" "$bin_name"
 else
   echo "Cannot extract zip: install unzip or python3." >&2; exit 1
 fi
@@ -132,7 +149,12 @@ if [ -z "$INSTALL_DIR" ]; then
   else INSTALL_DIR="${HOME}/bin"; fi
 fi
 mkdir -p "$INSTALL_DIR"
-install -m 755 "$extracted" "${INSTALL_DIR}/${bin_name}"
+dest="${INSTALL_DIR}/${bin_name}"
+[ ! -d "$dest" ] || { echo "Install destination is a directory: $dest" >&2; exit 1; }
+stage=$(mktemp "${INSTALL_DIR}/.${bin_name}.XXXXXX")
+install -m 755 "$extracted" "$stage"
+mv -f "$stage" "$dest"
+stage=''
 echo ""
 echo "kmq ${VERSION} installed to ${INSTALL_DIR}/${bin_name}"
 case ":${PATH}:" in
