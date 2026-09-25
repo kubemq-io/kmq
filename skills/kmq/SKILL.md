@@ -1,6 +1,6 @@
 ---
 name: kmq
-description: Use when the user wants to drive a KubeMQ broker or cluster from the command line or from an AI agent — sending or receiving Queue/Events/Events-Store/Command/Query messages, inspecting channels/connectors/agents, checking cluster health or metrics, or otherwise automating KubeMQ instead of using the dashboard. Triggers on "kmq", "KubeMQ CLI", "send a queue message", "subscribe to events", "check kubemq status/health/metrics", or any request to script/automate a KubeMQ broker.
+description: Use for KubeMQ command-line operations or when assessing whether a Kafka application can move to KubeMQ, even if the user does not know kmq by name. Covers messaging, resource and cluster inspection, diagnostics, Kafka compatibility assessment, and supported migration commands.
 allowed-tools: Bash(kmq:*)
 ---
 
@@ -17,3 +17,7 @@ Not installed yet?
 
 Content is served by the installed binary, so it never goes stale. Offline discovery:
 `kmq schema -o json`, `kmq cheat <topic>`, `kmq docs`.
+
+For a Kafka replacement request, inspect the installed binary's assessment and
+migration guidance before proposing a transfer. Treat unsupported and unknown
+findings as blockers; a compatibility report is not proof of a completed migration.
