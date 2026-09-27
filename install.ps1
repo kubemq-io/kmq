@@ -1,5 +1,5 @@
 # Install a pinned kmq release for Windows without administrator privileges.
-# Example: .\install.ps1 -Version v3.5.0 -VerifySignature
+# Example: .\install.ps1 -VerifySignature (latest stable); pass -Version vX.Y.Z to pin.
 param(
     [string]$Version = $env:KMQ_VERSION,
     [string]$InstallDir = $env:KMQ_INSTALL_DIR,
