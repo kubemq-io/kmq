@@ -113,7 +113,12 @@ if command -v cosign >/dev/null 2>&1; then
       key_hash=$(shasum -a 256 "${tmp_dir}/cosign.pub" | awk '{print $1}')
     fi
     [ "$key_hash" = "$TRUSTED_COSIGN_PUB_SHA256" ] || { echo "Release signing key differs from the pinned kmq trust root; aborting." >&2; exit 1; }
-    if ! ( cd "$tmp_dir" && cosign verify-blob --key cosign.pub --signature checksums.txt.sig checksums.txt ); then
+    if ( cd "$tmp_dir" && cosign verify-blob --key cosign.pub --signature checksums.txt.sig checksums.txt 2>cosign.stderr ); then
+      # Cosign 3 deprecates --signature, which this release's detached signature needs.
+      # Hide only that advisory after successful verification; keep other diagnostics.
+      sed '/^Flag --signature has been deprecated, please use --bundle to provide a signature$/d' "$tmp_dir/cosign.stderr" >&2
+    else
+      cat "$tmp_dir/cosign.stderr" >&2
       echo "cosign signature verification failed." >&2; exit 1
     fi
     echo "cosign signature verified."
