@@ -8,6 +8,17 @@
 # Mirror (GCS) / staging:
 #   KMQ_BASE_URL=https://storage.googleapis.com/storage.kubemq.io curl -sSfL .../install.sh | sh
 #
+# Prefer to read before you run? Download, inspect, then execute:
+#   curl -sSfL https://raw.githubusercontent.com/kubemq-io/kmq/main/install.sh -o install.sh
+#   less install.sh
+#   sh install.sh [--version vX.Y.Z] [--install-dir /path] [--verify-signature]
+#
+# Upgrading an existing install: `kmq update` fetches and verifies the latest release
+# in place (`kmq version --check` only reports). Re-running this script also works.
+#
+# After installing, the script checks whether a DIFFERENT kmq earlier on your PATH
+# would shadow the one just installed, and says so — it never removes the other copy.
+#
 # Env: KMQ_VERSION, KMQ_INSTALL_DIR, KMQ_BASE_URL, KMQ_PREFIX, KMQ_VERIFY_SIGNATURE=1
 # POSIX sh — no bashisms.
 set -eu
@@ -166,6 +177,23 @@ case ":${PATH}:" in
   *":${INSTALL_DIR}:"*) : ;;
   *) echo ""; echo "Note: ${INSTALL_DIR} is not in your PATH."; echo "  export PATH=\"${INSTALL_DIR}:\$PATH\"" ;;
 esac
+
+# ---- shadow check: does `kmq` on PATH resolve to the copy just installed? ----
+# An older kmq earlier on PATH silently wins over the new one; name both so the
+# user can fix PATH or remove the stale copy. Nothing is deleted here.
+found=$(command -v "$bin_name" 2>/dev/null || true)
+if [ -n "$found" ] && [ "$found" != "$dest" ]; then
+  same=0
+  if [ "$found" -ef "$dest" ] 2>/dev/null; then same=1; fi
+  if [ "$same" -eq 0 ]; then
+    found_ver=$("$found" version 2>/dev/null | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+    echo ""
+    echo "WARNING: 'kmq' on your PATH resolves to a different copy, which will shadow the new install:"
+    echo "  on PATH   : ${found}${found_ver:+ (version ${found_ver})}"
+    echo "  installed : ${dest} (version ${VERSION})"
+    echo "  Fix: put ${INSTALL_DIR} earlier in PATH, or remove ${found}, or rerun with --install-dir $(dirname "$found")"
+  fi
+fi
 echo ""; echo "Run 'kmq version' to verify."; echo "Run 'kmq --help' for usage."
 echo ""
 echo "Teach your AI agent to use kmq:"
