@@ -9,13 +9,15 @@ below the sentinel.
 ## Quick start
 
 ```sh
-# Install kmq (POSIX sh, no credentials required)
+# Install kmq on macOS or Linux (POSIX sh, no credentials required)
 curl -sSfL https://raw.githubusercontent.com/kubemq-io/kmq/main/install.sh | sh
+
+# Windows x86-64: download install.ps1 from the same repository and run it in PowerShell
 
 # Teach this agent the full command surface (workflows, auth, exit codes)
 kmq skills get core
 
-# Or install the discovery skill into every supported agent
+# Install the discovery skill into a supported agent (requires Node.js)
 npx skills add kubemq-io/kmq
 ```
 

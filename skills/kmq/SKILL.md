@@ -1,7 +1,6 @@
 ---
 name: kmq
-description: Use for KubeMQ command-line operations or when assessing whether a Kafka application can move to KubeMQ, even if the user does not know kmq by name. Covers messaging, resource and cluster inspection, diagnostics, Kafka compatibility assessment, and supported migration commands.
-allowed-tools: Bash(kmq:*)
+description: Use when installing, deploying, operating, or diagnosing KubeMQ, or assessing a Kafka move to KubeMQ. Discover the installed kmq command-line client's messaging, cluster, authentication, trial, deployment, and migration commands before acting.
 ---
 
 # kmq — KubeMQ agent CLI
@@ -11,9 +10,17 @@ allowed-tools: Bash(kmq:*)
     kmq skills get core          # workflows, command surface, auth, exit codes
     kmq skills get core --full   # + full command reference
 
-Not installed yet?
+If `kmq` is missing, install it on macOS or Linux:
 
     curl -sSfL https://raw.githubusercontent.com/kubemq-io/kmq/main/install.sh | sh
+
+On Windows, download and run the PowerShell installer:
+
+    Invoke-WebRequest https://raw.githubusercontent.com/kubemq-io/kmq/main/install.ps1 -OutFile install-kmq.ps1
+    .\install-kmq.ps1
+
+Then run `kmq version` and `kmq skills get core`. The installer supports Windows x86-64;
+check its output for the installed path.
 
 Content is served by the installed binary, so it never goes stale. Offline discovery:
 `kmq schema -o json`, `kmq cheat <topic>`, `kmq docs`.
