@@ -33,6 +33,10 @@ npx skills add kubemq-io/kmq
 | 7 | Partial success | Case-by-case |
 | 8 | Retryable (server initializing) | Yes — `kmq` retries automatically |
 
+One exception to the automatic retry: `kmq kafka share-groups reset-offsets` exits 8 when
+the share group still has consumers attached (NON_EMPTY_GROUP). `kmq` does not retry that
+one — stop the consumers, then run the command again.
+
 ## Output discipline
 
 - Data → **stdout** only; errors and warnings → **stderr** only.
