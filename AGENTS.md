@@ -27,13 +27,17 @@ npx skills add kubemq-io/kmq
 |------|---------|--------|
 | 0 | Success | — |
 | 1 | Generic error | No |
-| 2 | Usage / bad flags | No |
+| 2 | Usage / bad flags / bad address or TLS setup | No |
 | 3 | Not found | No |
 | 4 | Auth error | No |
 | 5 | Connection error | Yes (server down?) |
 | 6 | Timeout | Yes |
 | 7 | Partial success | Case-by-case |
-| 8 | Retryable (server initializing) | Yes — `kmq` retries automatically |
+| 8 | Retryable (server initializing or not ready; HTTP 429/502/503/504) | Yes — `kmq` retries some automatically |
+| 130 | Stopped by Ctrl-C / SIGTERM | — |
+
+Every exit-8 error carries `"retryable": true`; `kmq schema -o json | jq .error_codes` lists
+every error code with its exit code.
 
 One exception to the automatic retry: `kmq kafka share-groups reset-offsets` exits 8 when
 the share group still has consumers attached (NON_EMPTY_GROUP). `kmq` does not retry that
