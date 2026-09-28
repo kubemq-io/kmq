@@ -47,7 +47,12 @@ done
 
 # Bound every release request, including retries. A failed upgrade must leave the
 # existing executable intact instead of waiting forever on a stalled transfer.
+# fetch: small metadata (version pointers, checksums, keys) — a total cap is fine.
 fetch() { curl -fsSL --retry 3 --retry-delay 1 --retry-max-time 60 --connect-timeout 10 --max-time 30 "$@"; }
+# download: the release archive (tens of MB). Bound stalls, not total time: a
+# slow but live link must be allowed to finish, so abort only when the transfer
+# runs under 1 KB/s for 30 s.
+download() { curl -fsSL --retry 3 --retry-delay 1 --connect-timeout 10 --speed-limit 1024 --speed-time 30 "$@"; }
 
 # ---- normalize version to a single leading v ----
 norm_ver() { case "$1" in v*) printf '%s' "$1" ;; *) printf 'v%s' "$1" ;; esac; }
@@ -98,7 +103,7 @@ stage=''
 trap 'rm -rf "$tmp_dir"; [ -z "$stage" ] || rm -f "$stage"' EXIT
 trap 'exit 130' INT TERM
 echo "Downloading ${archive_url}..."
-fetch -o "${tmp_dir}/${archive}" "$archive_url"
+download -o "${tmp_dir}/${archive}" "$archive_url"
 fetch -o "${tmp_dir}/checksums.txt" "$checksum_url"
 
 # ---- MANDATORY checksum verification (abort if no tool) ----
