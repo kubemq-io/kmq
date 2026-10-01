@@ -12,14 +12,35 @@ $trustedKeyHash = 'b8792764c60e86a21aa0aed6b34e964ea5cf180c3654a043dbd9e4355a141
 $repository = 'https://github.com/kubemq-io/kmq'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
+# Bound stalls, not total time: Invoke-WebRequest -TimeoutSec caps the whole
+# transfer, which a slow but live link cannot meet for a multi-megabyte archive.
+# HttpWebRequest.Timeout covers connect + response headers (30 s) and
+# ReadWriteTimeout aborts only when a single body read stalls for 30 s.
 function Get-ReleaseFile([string]$Uri, [string]$Destination) {
     for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $response = $null
+        $stream = $null
+        $output = $null
         try {
-            Invoke-WebRequest -Uri $Uri -OutFile $Destination -TimeoutSec 30 -MaximumRedirection 5 -UseBasicParsing -Headers @{ 'User-Agent' = 'kmq-installer' }
+            $request = [Net.HttpWebRequest]::Create($Uri)
+            $request.Method = 'GET'
+            $request.UserAgent = 'kmq-installer'
+            $request.AllowAutoRedirect = $true
+            $request.MaximumAutomaticRedirections = 5
+            $request.Timeout = 30000
+            $request.ReadWriteTimeout = 30000
+            $response = $request.GetResponse()
+            $stream = $response.GetResponseStream()
+            $output = [IO.File]::Create($Destination)
+            $stream.CopyTo($output)
             return
         } catch {
             if ($attempt -eq 3) { throw "Download failed after three attempts: $Uri. $($_.Exception.Message)" }
             Start-Sleep -Seconds $attempt
+        } finally {
+            if ($output) { $output.Dispose() }
+            if ($stream) { $stream.Dispose() }
+            if ($response) { $response.Dispose() }
         }
     }
 }
