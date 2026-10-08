@@ -53,3 +53,12 @@ one — stop the consumers, then run the command again.
 - `kmq skills get core` — workflows, command surface, auth, exit codes (offline, version-matched).
 - `kmq skills get core --full` — the above plus the full command reference.
 - `kmq cheat <topic>`, `kmq schema -o json`, `kmq docs` — embedded recipes, machine schema, doc signpost.
+
+## Work Tracking
+
+Work items are GitHub issues on the org-wide "KubeMQ" project board
+(https://github.com/orgs/kubemq-io/projects/2). The procedure is
+https://github.com/kubemq-io/kubemq-server/blob/master/docs/github-workflow.md: an issue lives in the
+repo whose code changes (this repo's usual areas: area/cli); every PR body starts with
+`Closes #N` (or `Refs #N` for a slice); merged-but-unreleased work carries `release/pending`;
+releases are milestones. Labels here are managed by `scripts/github/labels.sh` in kubemq-server.

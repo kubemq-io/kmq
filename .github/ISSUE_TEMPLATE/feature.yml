@@ -1,0 +1,35 @@
+name: Feature
+description: A new capability, protocol surface, or behaviour change
+labels: ["type/feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who needs this and what they cannot do today. Name the prospect, customer, or protocol spec if one exists.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What changes, from the user's side. Interface first, mechanism second.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done means
+      description: The observable check that closes this issue.
+    validations:
+      required: true
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options: ["S", "M", "L", "XL"]
+  - type: textarea
+    id: refs
+    attributes:
+      label: References
+      description: Specs, KIPs, competitor behaviour, `.work/` research.

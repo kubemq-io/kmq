@@ -1,0 +1,28 @@
+name: Task
+description: Research, chore, ops, docs, or refactor work that is neither a bug nor a feature
+labels: []
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      description: Apply the matching type/* label after creating.
+      options: ["research", "chore", "ops", "docs", "refactor"]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why now
+  - type: textarea
+    id: done
+    attributes:
+      label: Done means
+    validations:
+      required: true
