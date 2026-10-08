@@ -1,0 +1,36 @@
+name: Bug
+description: A defect in shipped behaviour
+labels: ["type/bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Image tag, binary version, or commit (`kubemq version` / `kmq version`)
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: Quote the shortest decisive log line or error text verbatim.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Commands, config, client, topology (single node / 3-node / Kubernetes). A script or test name beats prose.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Links to `.work/` reports, captures, dashboards. Do not paste reports in.

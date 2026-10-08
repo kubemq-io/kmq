@@ -1,0 +1,42 @@
+name: Finding
+description: A defect found by a campaign, audit, review or harness, not yet reported by a user
+labels: ["type/finding"]
+body:
+  - type: input
+    id: source
+    attributes:
+      label: Found by
+      description: Campaign, review, or harness and its report path (e.g. `.work/tasks/<slug>/HANDOVER.md` finding 12)
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit observed on
+    validations:
+      required: true
+  - type: textarea
+    id: defect
+    attributes:
+      label: Defect
+      description: What is wrong, in one paragraph. State the invariant that is violated.
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Failure scenario
+      description: Concrete inputs and state that produce the wrong output, crash or loss.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options: ["P0 - data loss / security / stopped customer", "P1 - must land next release", "P2 - should land soon", "P3 - unscheduled"]
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Proposed fix or open question
