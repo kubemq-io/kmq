@@ -9,7 +9,7 @@
       "name": "kmq",
       "source": ".",
       "description": "KubeMQ agent CLI skill",
-      "version": "3.6.17"
+      "version": "3.6.18-rc.1"
     }
   ]
 }
